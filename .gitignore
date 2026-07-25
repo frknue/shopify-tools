@@ -1,0 +1,21 @@
+# Build output
+/bin/
+/dist/
+/completions/
+
+# Test & coverage
+coverage.out
+coverage.html
+*.test
+
+# Local config that may contain access tokens — never commit
+config.yaml
+config.local.yaml
+.env
+.env.*
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp

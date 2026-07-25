@@ -1,0 +1,61 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - copyloopvar
+    - errorlint
+    - gocritic
+    - gosec
+    - misspell
+    - nilerr
+    - noctx
+    - revive
+    - unconvert
+    - unparam
+    - usetesting
+    - wastedassign
+    - whitespace
+
+  settings:
+    errcheck:
+      # Writing a status line to the terminal cannot fail in a way the CLI
+      # could act on; the real errors surface from the printer's Flush.
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+    revive:
+      rules:
+        - name: exported
+          arguments:
+            - disableStutteringCheck
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+      disabled-checks:
+        - hugeParam
+
+  exclusions:
+    rules:
+      # Tests may be looser about error wrapping and unchecked writes.
+      - path: _test\.go
+        linters:
+          - errorlint
+          - gosec
+          - unparam
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/frknue/shopify-tools
