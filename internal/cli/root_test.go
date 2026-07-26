@@ -79,7 +79,7 @@ func TestAuthListReadsConfig(t *testing.T) {
 	cfg.SetProfile("staging", &config.Profile{
 		Shop:        "acme.myshopify.com",
 		AccessToken: "shpat_test",
-		APIVersion:  "2025-07",
+		APIVersion:  "2026-04",
 	})
 	if err := cfg.Save(); err != nil {
 		t.Fatalf("Save() returned error: %v", err)

@@ -23,7 +23,7 @@ func newTestClient(t *testing.T, h http.HandlerFunc, opts ...shopify.Option) *sh
 		shopify.WithHTTPClient(srv.Client()),
 	}, opts...)
 
-	client, err := shopify.New("acme.myshopify.com", "shpat_test", "2025-07", all...)
+	client, err := shopify.New("acme.myshopify.com", "shpat_test", "2026-04", all...)
 	if err != nil {
 		t.Fatalf("New() returned error: %v", err)
 	}
@@ -35,7 +35,7 @@ func TestGraphQLDecodesData(t *testing.T) {
 		if got := r.Header.Get("X-Shopify-Access-Token"); got != "shpat_test" {
 			t.Errorf("access token header = %q, want shpat_test", got)
 		}
-		if !strings.HasSuffix(r.URL.Path, "/admin/api/2025-07/graphql.json") {
+		if !strings.HasSuffix(r.URL.Path, "/admin/api/2026-04/graphql.json") {
 			t.Errorf("path = %q, want the versioned graphql endpoint", r.URL.Path)
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -130,10 +130,10 @@ func TestContextCancellationIsPropagated(t *testing.T) {
 }
 
 func TestNewValidatesArguments(t *testing.T) {
-	if _, err := shopify.New("", "token", "2025-07"); err == nil {
+	if _, err := shopify.New("", "token", "2026-04"); err == nil {
 		t.Error("New() with empty shop = nil error, want error")
 	}
-	if _, err := shopify.New("acme.myshopify.com", "", "2025-07"); err == nil {
+	if _, err := shopify.New("acme.myshopify.com", "", "2026-04"); err == nil {
 		t.Error("New() with empty token = nil error, want error")
 	}
 	if _, err := shopify.New("acme.myshopify.com", "token", ""); err == nil {

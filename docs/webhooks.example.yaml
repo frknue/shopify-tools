@@ -1,0 +1,31 @@
+# Example webhook manifest for `shopify-tools webhooks sync --file <this>`.
+#
+# The file is the desired state: entries here are created, entries that differ
+# are updated, and (only with --prune) subscriptions missing from this file are
+# deleted. Running sync twice makes no second round of changes.
+#
+# A subscription is identified by topic + uri together, so changing a uri reads
+# as a new subscription rather than an edit of the old one.
+webhooks:
+  # Minimal entry: JSON payload, every field, no filter.
+  - topic: ORDERS_CREATE
+    uri: https://api.acme.dev/hooks/orders
+
+  # Trim the payload down to the fields you actually consume.
+  - topic: ORDERS_UPDATED
+    uri: https://api.acme.dev/hooks/orders
+    include_fields:
+      - id
+      - total_price
+      - financial_status
+
+  # Only deliver events matching a search-syntax filter.
+  - topic: PRODUCTS_UPDATE
+    uri: https://api.acme.dev/hooks/products
+    filter: "status:active"
+    metafield_namespaces:
+      - custom
+
+  # Endpoints may also be Google Pub/Sub or Amazon EventBridge.
+  - topic: APP_UNINSTALLED
+    uri: pubsub://acme-project:shopify-events

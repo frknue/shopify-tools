@@ -30,7 +30,7 @@ func TestAuthStatusUsesInjectedClient(t *testing.T) {
 	cfg.SetProfile("test", &config.Profile{
 		Shop:        "acme.myshopify.com",
 		AccessToken: "shpat_test",
-		APIVersion:  "2025-07",
+		APIVersion:  "2026-04",
 	})
 	if err := cfg.Save(); err != nil {
 		t.Fatalf("Save() returned error: %v", err)
@@ -41,7 +41,7 @@ func TestAuthStatusUsesInjectedClient(t *testing.T) {
 	factory.Options.ConfigPath = path
 	factory.Options.OutputFormat = "json"
 	factory.ClientFunc = func(context.Context) (*shopify.Client, error) {
-		return shopify.New("acme.myshopify.com", "shpat_test", "2025-07",
+		return shopify.New("acme.myshopify.com", "shpat_test", "2026-04",
 			shopify.WithBaseURL(srv.URL),
 			shopify.WithHTTPClient(srv.Client()),
 		)
@@ -77,12 +77,12 @@ func TestAuthStatusSurfacesAPIErrors(t *testing.T) {
 	factory.ConfigFunc = func() (*config.Config, error) {
 		cfg := config.New()
 		cfg.SetProfile("test", &config.Profile{
-			Shop: "acme.myshopify.com", AccessToken: "bad", APIVersion: "2025-07",
+			Shop: "acme.myshopify.com", AccessToken: "bad", APIVersion: "2026-04",
 		})
 		return cfg, nil
 	}
 	factory.ClientFunc = func(context.Context) (*shopify.Client, error) {
-		return shopify.New("acme.myshopify.com", "bad", "2025-07",
+		return shopify.New("acme.myshopify.com", "bad", "2026-04",
 			shopify.WithBaseURL(srv.URL),
 			shopify.WithHTTPClient(srv.Client()),
 			shopify.WithMaxRetries(0),

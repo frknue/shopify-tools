@@ -8,32 +8,28 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/frknue/shopify-tools/internal/config"
+	"github.com/frknue/shopify-tools/internal/exitcode"
 	"github.com/frknue/shopify-tools/internal/iostreams"
 	"github.com/frknue/shopify-tools/internal/shopify"
 )
 
-// Exit codes. Keep these stable: scripts depend on them.
+// Exit codes, re-exported from internal/exitcode so that command packages can
+// depend on the codes without importing the whole CLI.
 const (
-	ExitOK           = 0
-	ExitError        = 1
-	ExitUsage        = 2
-	ExitAuth         = 3
-	ExitNotFound     = 4
-	ExitCancelled    = 130 // 128 + SIGINT
-	ExitConfigDefect = 5
+	ExitOK           = exitcode.OK
+	ExitError        = exitcode.Error
+	ExitUsage        = exitcode.Usage
+	ExitAuth         = exitcode.Auth
+	ExitNotFound     = exitcode.NotFound
+	ExitConfigDefect = exitcode.ConfigDefect
+	ExitCancelled    = exitcode.Cancelled
 )
 
 // ExitCodeError carries an explicit exit code out of a command.
-type ExitCodeError struct {
-	Code int
-	Err  error
-}
-
-func (e *ExitCodeError) Error() string { return e.Err.Error() }
-func (e *ExitCodeError) Unwrap() error { return e.Err }
+type ExitCodeError = exitcode.CodeError
 
 // NewExitError wraps err with an explicit exit code.
-func NewExitError(code int, err error) error { return &ExitCodeError{Code: code, Err: err} }
+func NewExitError(code int, err error) error { return exitcode.New(code, err) }
 
 // ErrSilent suppresses the error message but still fails the process. Use it
 // when the command already told the user what went wrong.

@@ -32,7 +32,8 @@ Data flows one way: `main` → `cli` (root cmd + registry) → `commands/<tool>`
 | `cmd/shopify-tools/` | Entry point only: build streams, run, map error → exit code. Keep it thin. |
 | `internal/app/` | `*Factory` — the dependency container passed to every command. Resolves config, API client, printer, logger lazily and memoises them. |
 | `internal/cli/` | Root command, global flags, `registry.go` (tool list), `errors.go` (error → exit code). |
-| `internal/commands/<tool>/` | One package per tool. Tools never import each other. |
+| `internal/commands/<tool>/` | One package per tool. Tools never import each other. Current: `auth`, `webhooks`. |
+| `internal/exitcode/` | Exit-code constants and the error type carrying one. A leaf package: tool packages need the codes, and `internal/cli` maps errors onto them, so neither can own it without an import cycle. **Tools import `exitcode`, never `cli`.** |
 | `internal/config/` | Layered config: defaults < file < `SHOPIFY_TOOLS_*` env < flags. Named store profiles. |
 | `internal/shopify/` | Admin API **transport only** — auth headers, retries, error mapping. No domain logic. |
 | `internal/output/` | table / json / yaml renderers. |
@@ -61,7 +62,9 @@ These are enforced by review, not by the compiler — getting them wrong compile
   `output.Tabler`, hand it to `f.Printer()`. That is what makes `--output
   json|yaml` work on every tool without per-command code.
 - **Return errors, never call `os.Exit`.** `internal/cli/errors.go` maps them.
-  Use `cli.NewExitError(code, err)` for a specific code. Wrap with `%w`.
+  For a specific code use `exitcode.New(exitcode.Error, err)` from a tool
+  package (importing `cli` there is an import cycle), or `cli.NewExitError`
+  from inside `internal/cli`. Wrap with `%w`.
 - **Thread `cmd.Context()`** into every call that does I/O, so Ctrl-C cancels
   in-flight requests.
 - **GraphQL documents live with the tool that uses them**, not in
@@ -108,3 +111,10 @@ Examples: `internal/commands/auth/auth_test.go` (single tool),
   or they will clobber the developer's credentials.
 - `go mod tidy` must leave no diff — CI fails on it.
 - Tests run with `-shuffle=on`: no ordering dependencies between tests.
+- **Validate new GraphQL against the schema** before building code around it —
+  the Shopify admin skill's `validate.mjs` does this. `webhookSubscriptions`
+  returns only subscriptions created via the API *by the same access token*,
+  never app-scoped ones from a `shopify.app.toml`; `WebhookSubscriptionInput`
+  uses `uri` (`callbackUrl` is deprecated).
+- **`config.DefaultAPIVersion` needs bumping roughly quarterly.** Shopify
+  supports each version for about a year.

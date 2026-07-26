@@ -23,7 +23,7 @@ import (
 const EnvPrefix = "SHOPIFY_TOOLS_"
 
 // DefaultAPIVersion is the Shopify Admin API version used when none is set.
-const DefaultAPIVersion = "2025-07"
+const DefaultAPIVersion = "2026-04"
 
 // ErrNoProfile is returned when no usable profile could be resolved.
 var ErrNoProfile = errors.New("no store profile configured")
@@ -56,7 +56,7 @@ type Profile struct {
 	Shop string `yaml:"shop" json:"shop"`
 	// AccessToken is an Admin API access token (shpat_...).
 	AccessToken string `yaml:"access_token,omitempty" json:"-"`
-	// APIVersion pins the Admin API version, e.g. "2025-07".
+	// APIVersion pins the Admin API version, e.g. "2026-04".
 	APIVersion string `yaml:"api_version,omitempty" json:"api_version,omitempty"`
 }
 

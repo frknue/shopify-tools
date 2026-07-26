@@ -34,6 +34,61 @@ shopify-tools auth list
 shopify-tools auth use staging
 ```
 
+## Tools
+
+### `auth` — credentials and store profiles
+
+```sh
+shopify-tools auth login --shop acme.myshopify.com   # token prompted, never echoed
+shopify-tools auth status                            # verify against the live API
+shopify-tools auth list                              # every configured profile
+shopify-tools auth use staging                       # switch the active profile
+shopify-tools auth logout staging
+```
+
+### `webhooks` — webhook subscriptions, imperatively or declaratively
+
+One-off changes:
+
+```sh
+shopify-tools webhooks list
+shopify-tools webhooks list --topic orders/create        # REST-style topics work too
+shopify-tools webhooks topics --search order             # read from the live schema
+shopify-tools webhooks create --topic ORDERS_CREATE --uri https://api.acme.dev/hooks/orders
+shopify-tools webhooks update 1234567890 --uri https://api.acme.dev/hooks/orders-v2
+shopify-tools webhooks delete 1234567890 --yes
+```
+
+Or keep the desired state in a file and let the CLI converge the store to it:
+
+```yaml
+# webhooks.yaml
+webhooks:
+  - topic: ORDERS_CREATE
+    uri: https://api.acme.dev/hooks/orders
+    include_fields: [id, total_price]
+  - topic: PRODUCTS_UPDATE
+    uri: https://api.acme.dev/hooks/products
+    filter: "status:active"
+```
+
+```sh
+shopify-tools webhooks diff --file webhooks.yaml    # what would change
+shopify-tools webhooks sync --file webhooks.yaml    # apply it, after confirming
+shopify-tools webhooks sync --file webhooks.yaml --prune --yes   # also delete extras
+```
+
+`sync` is idempotent: run it twice and the second run reports no changes.
+Deletions only happen with `--prune`, so webhooks managed elsewhere are left
+alone by default. In CI, `diff --exit-code` fails the build when the store has
+drifted from the file. A full annotated manifest lives in
+[docs/webhooks.example.yaml](docs/webhooks.example.yaml).
+
+> **Scope:** the Admin API only returns webhooks created through the API by the
+> *same* access token, and never the app-scoped ones declared in a
+> `shopify.app.toml`. Every `webhooks` command operates on the subscriptions
+> belonging to the active profile's token.
+
 ## Configuration
 
 Settings are resolved in this order, later sources win:
@@ -53,7 +108,7 @@ profiles:
   production:
     shop: acme.myshopify.com
     access_token: shpat_xxx
-    api_version: "2025-07"
+    api_version: "2026-04"
   staging:
     shop: acme-staging.myshopify.com
     access_token: shpat_yyy
