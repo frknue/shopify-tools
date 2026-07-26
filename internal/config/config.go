@@ -43,6 +43,8 @@ type Config struct {
 
 	// path is where this config was loaded from; not serialized.
 	path string `yaml:"-" json:"-"`
+	// env is what the environment overlaid on the file; not serialized.
+	env *envOverlay `yaml:"-" json:"-"`
 }
 
 // Defaults holds global, profile-independent settings.
@@ -143,7 +145,18 @@ func Load(path string) (*Config, error) {
 // applyEnv overlays environment variables on top of the file contents.
 // SHOPIFY_TOOLS_SHOP / _ACCESS_TOKEN define an implicit "env" profile that
 // wins over the file, mirroring how CI environments are usually wired.
+//
+// Everything it changes is recorded, because the environment configures a run
+// but must never edit the file: see envOverlay.
 func (c *Config) applyEnv() {
+	// The file's own values, before anything is overlaid on them.
+	env := &envOverlay{prevCurrent: c.CurrentProfile, prevOutput: c.Defaults.Output}
+	c.env = env
+	defer func() {
+		env.current, env.currentSet = c.CurrentProfile, c.CurrentProfile != env.prevCurrent
+		env.output, env.outputSet = c.Defaults.Output, c.Defaults.Output != env.prevOutput
+	}()
+
 	if v := os.Getenv(EnvPrefix + "PROFILE"); v != "" {
 		c.CurrentProfile = v
 	}
@@ -166,7 +179,11 @@ func (c *Config) applyEnv() {
 	if p == nil {
 		p = &Profile{Name: name}
 		c.Profiles[name] = p
+		env.created = true
 	}
+
+	env.profile = name
+	env.previous = *p
 	if shop != "" {
 		p.Shop = shop
 	}
@@ -176,7 +193,32 @@ func (c *Config) applyEnv() {
 	if apiVersion != "" {
 		p.APIVersion = apiVersion
 	}
+	env.applied = *p
 	c.CurrentProfile = name
+}
+
+// envOverlay records what applyEnv put on top of the file, together with the
+// values it replaced.
+//
+// Save reverts it, so that a run configured by the environment cannot rewrite
+// the file: an access token exported in CI would otherwise be persisted to
+// disk, and a stored one silently overwritten by it. Values that were changed
+// again afterwards are left alone, so a deliberate edit still saves.
+type envOverlay struct {
+	// profile is the profile the environment supplied credentials for, and
+	// created reports that it did not exist in the file at all.
+	profile string
+	created bool
+	// applied is the profile as the environment left it; previous is how the
+	// file had it.
+	applied  Profile
+	previous Profile
+
+	current, prevCurrent string
+	currentSet           bool
+
+	output, prevOutput string
+	outputSet          bool
 }
 
 // Path returns the file this config was loaded from.
@@ -232,7 +274,29 @@ func (c *Config) SetProfile(name string, p *Profile) {
 	p.Name = name
 	c.Profiles[name] = p
 	if c.CurrentProfile == "" {
-		c.CurrentProfile = name
+		c.SetCurrentProfile(name)
+	}
+	c.forgetEnvProfile(name)
+}
+
+// SetCurrentProfile selects the profile used when --profile is not given.
+//
+// Prefer it over assigning the field: it records the choice as the user's, so
+// that it is written to the file even when the environment happens to name the
+// same profile.
+func (c *Config) SetCurrentProfile(name string) {
+	c.CurrentProfile = name
+	if c.env != nil {
+		c.env.currentSet = false
+		c.env.prevCurrent = name
+	}
+}
+
+// forgetEnvProfile drops the record of what the environment supplied for a
+// profile, because the caller has just set it deliberately.
+func (c *Config) forgetEnvProfile(name string) {
+	if c.env != nil && c.env.profile == name {
+		c.env.profile, c.env.created = "", false
 	}
 }
 
@@ -242,10 +306,11 @@ func (c *Config) RemoveProfile(name string) bool {
 		return false
 	}
 	delete(c.Profiles, name)
+	c.forgetEnvProfile(name)
 	if c.CurrentProfile == name {
-		c.CurrentProfile = ""
+		c.SetCurrentProfile("")
 		if names := c.ProfileNames(); len(names) == 1 {
-			c.CurrentProfile = names[0]
+			c.SetCurrentProfile(names[0])
 		}
 	}
 	return true
@@ -309,6 +374,55 @@ func removeString(values []string, target string) []string {
 	return kept
 }
 
+// forFile returns the configuration as it should be written: this one, with
+// everything the environment supplied and nobody has since changed taken back
+// out. A value that differs from what the environment left is a deliberate
+// change and is kept.
+func (c *Config) forFile() *Config {
+	out := *c
+	out.Profiles = make(map[string]*Profile, len(c.Profiles))
+	for name, p := range c.Profiles {
+		clone := *p
+		out.Profiles[name] = &clone
+	}
+
+	env := c.env
+	if env == nil {
+		return &out
+	}
+
+	if env.profile != "" {
+		if p := out.Profiles[env.profile]; p != nil {
+			if p.Shop == env.applied.Shop {
+				p.Shop = env.previous.Shop
+			}
+			if p.AccessToken == env.applied.AccessToken {
+				p.AccessToken = env.previous.AccessToken
+			}
+			if p.APIVersion == env.applied.APIVersion {
+				p.APIVersion = env.previous.APIVersion
+			}
+			// A profile that only ever existed because of the environment goes
+			// with it, unless something was added to it in the meantime.
+			if env.created && *p == (Profile{Name: env.profile}) {
+				delete(out.Profiles, env.profile)
+			}
+		}
+	}
+
+	if env.currentSet && out.CurrentProfile == env.current {
+		out.CurrentProfile = env.prevCurrent
+	}
+	if _, ok := out.Profiles[out.CurrentProfile]; !ok && out.CurrentProfile != "" {
+		// Never leave the file pointing at a profile it does not contain.
+		out.CurrentProfile = env.prevCurrent
+	}
+	if env.outputSet && out.Defaults.Output == env.output {
+		out.Defaults.Output = env.prevOutput
+	}
+	return &out
+}
+
 // Save writes the config atomically with owner-only permissions, because it
 // may contain access tokens.
 func (c *Config) Save() error {
@@ -319,7 +433,7 @@ func (c *Config) Save() error {
 		return fmt.Errorf("create config dir: %w", err)
 	}
 
-	data, err := yaml.Marshal(c)
+	data, err := yaml.Marshal(c.forFile())
 	if err != nil {
 		return fmt.Errorf("encode config: %w", err)
 	}

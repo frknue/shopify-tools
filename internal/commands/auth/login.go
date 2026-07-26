@@ -90,7 +90,7 @@ func runLogin(ctx context.Context, f *app.Factory, opts *loginOptions) error {
 	profile := &config.Profile{Shop: shop, AccessToken: token, APIVersion: opts.apiVersion}
 	cfg.SetProfile(name, profile)
 	if opts.setCurrent {
-		cfg.CurrentProfile = name
+		cfg.SetCurrentProfile(name)
 	}
 
 	if !opts.skipVerify {

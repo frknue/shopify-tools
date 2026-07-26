@@ -116,6 +116,12 @@ Always drain the master side, or a full terminal buffer deadlocks the command.
   fixture path outside `t.TempDir()`.
 - **Config tests must use `t.Setenv`/`t.TempDir`**, never the real config path,
   or they will clobber the developer's credentials.
+- **The environment never edits the config file.** `applyEnv` records what it
+  overlaid and `Save` reverts it, so a `SHOPIFY_TOOLS_ACCESS_TOKEN` from CI is
+  not persisted and cannot overwrite a stored one. Change config through
+  `SetProfile`/`SetCurrentProfile` rather than assigning the fields: those mark
+  the change as deliberate, and one that merely happens to match the
+  environment's value would otherwise be reverted on save.
 - **`account` shells out to the real `shopify` CLI**; its tests must always
   inject a fake through `account.NewCommandWithDeps`, or they would change the
   developer's Shopify login. They must also point `SHOPIFY_AUTH_CONFIG` at a

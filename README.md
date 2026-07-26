@@ -173,6 +173,11 @@ export SHOPIFY_TOOLS_ACCESS_TOKEN=shpat_xxx
 shopify-tools auth status -o json
 ```
 
+Environment variables configure a run; they never edit the config file. A
+token exported in CI cannot end up on disk, and cannot overwrite the one a
+profile already stores, even when a command writes the file for its own
+reasons. Anything you change deliberately is still saved.
+
 ## Global flags
 
 | Flag              | Description                            |

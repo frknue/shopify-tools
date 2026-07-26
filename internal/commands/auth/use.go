@@ -31,7 +31,7 @@ func newUseCommand(f *app.Factory) *cobra.Command {
 				return fmt.Errorf("profile %q not found; run `shopify-tools auth list`", name)
 			}
 
-			cfg.CurrentProfile = name
+			cfg.SetCurrentProfile(name)
 			if err := cfg.Save(); err != nil {
 				return err
 			}

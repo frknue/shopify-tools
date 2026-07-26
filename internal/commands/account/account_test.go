@@ -811,3 +811,32 @@ func TestAnUnreadableConfigIsReportedNotIgnored(t *testing.T) {
 		}
 	}
 }
+
+// This tool has nothing to do with Admin API tokens, and its automatic import
+// means even a read-only command can write the config file. Neither may put a
+// token from the environment on disk.
+func TestEnvCredentialsAreNotPersistedByThisTool(t *testing.T) {
+	t.Setenv("SHOPIFY_TOOLS_SHOP", "acme.myshopify.com")
+	t.Setenv("SHOPIFY_TOOLS_ACCESS_TOKEN", "shpat_from_ci")
+
+	h := newHarness(t, account.Deps{Runner: &fakeRunner{selectedAlias: "dev@example.test"}}, "")
+	writeLegacyConfig(t, `{"version":1,"accounts":[{"name":"old","shopify_alias":"old@example.test"}]}`)
+
+	for _, args := range [][]string{{"list"}, {"use", "work"}} {
+		if err := h.run(t, args...); err != nil {
+			t.Fatalf("account %v returned error: %v (stderr: %s)", args, err, h.stderr)
+		}
+	}
+
+	written, err := os.ReadFile(h.configPath)
+	if err != nil {
+		t.Fatalf("ReadFile() returned error: %v", err)
+	}
+	if strings.Contains(string(written), "shpat_from_ci") {
+		t.Errorf("the token from the environment was written to disk:\n%s", written)
+	}
+	// The tool's own writes still land.
+	if saved := h.saved(t); saved.Current != "work" {
+		t.Errorf("current profile = %q, want the tool's own change saved", saved.Current)
+	}
+}
