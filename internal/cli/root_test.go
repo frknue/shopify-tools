@@ -105,3 +105,28 @@ func TestMissingProfileExitsWithConfigCode(t *testing.T) {
 		t.Errorf("stderr = %q, want it to point at `auth login`", stderr)
 	}
 }
+
+func TestAccountUseCompletesSavedProfiles(t *testing.T) {
+	// Completion reads the profile list, which is also what triggers the
+	// one-time import: keep it away from the developer's own shopify-auth.
+	t.Setenv("SHOPIFY_AUTH_CONFIG", filepath.Join(t.TempDir(), "none.json"))
+
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	cfg := config.New()
+	cfg.SetPath(path)
+	cfg.SetCLIAccount(config.CLIAccount{Name: "work", ShopifyAlias: "dev@example.test"})
+	cfg.CLIAccounts.Pending = []string{"legacy"}
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("Save() returned error: %v", err)
+	}
+
+	stdout, stderr, code := execute(t, "__complete", "account", "use", "--config", path, "")
+	if code != cli.ExitOK {
+		t.Fatalf("exit code = %d, want 0 (stderr: %s)", code, stderr)
+	}
+	for _, want := range []string{"work", "legacy"} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("completions = %q, want %q among them", stdout, want)
+		}
+	}
+}

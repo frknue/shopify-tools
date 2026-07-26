@@ -36,6 +36,37 @@ shopify-tools auth use staging
 
 ## Tools
 
+### `account` — Shopify CLI accounts
+
+Switches the Shopify CLI between accounts using memorable profile names. This
+is about the `shopify` CLI's own login, not about the Admin API tokens that
+`auth` keeps.
+
+```sh
+shopify-tools account use work    # switch to a profile, or create it if new
+shopify-tools account use         # pick one from the saved profiles
+shopify-tools account list        # every profile and the account it points at
+shopify-tools account logout      # end every Shopify CLI session
+```
+
+Creating a profile opens Shopify's own account picker, and whatever account it
+confirms is linked to the name — there is no alias to retype. Every switch is
+verified against the account the CLI reports back; a profile whose account
+Shopify has forgotten is re-linked through the picker instead of failing.
+
+Authentication is delegated entirely to the Shopify CLI, which owns and
+refreshes the credentials. Nothing but the name-to-account mapping is stored
+here, under `cli_accounts` in the config file. Requires the Shopify CLI on
+`PATH`:
+
+```sh
+npm install -g @shopify/cli@latest
+```
+
+> Profiles from the standalone [`shopify-auth`](https://github.com/frknue/shopify-auth)
+> tool are imported once, the first time an `account` command runs. Set
+> `SHOPIFY_AUTH_CONFIG` to import them from a non-standard location.
+
 ### `auth` — credentials and store profiles
 
 ```sh
@@ -112,6 +143,11 @@ profiles:
   staging:
     shop: acme-staging.myshopify.com
     access_token: shpat_yyy
+cli_accounts:                     # `account` tool; no credentials, see above
+  current: work
+  accounts:
+    - name: work
+      shopify_alias: dev@example.com
 ```
 
 The file is written with `0600` permissions because it holds access tokens.
@@ -126,6 +162,7 @@ The file is written with `0600` permissions because it holds access tokens.
 | `SHOPIFY_TOOLS_ACCESS_TOKEN` | Admin API access token                         |
 | `SHOPIFY_TOOLS_API_VERSION`  | Admin API version                              |
 | `SHOPIFY_TOOLS_OUTPUT`       | Default output format                          |
+| `SHOPIFY_AUTH_CONFIG`        | Where `account` imports shopify-auth profiles from |
 | `NO_COLOR`                   | Disable colored output                         |
 
 In CI you can skip the config file entirely:

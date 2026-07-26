@@ -36,6 +36,10 @@ type Config struct {
 	Profiles map[string]*Profile `yaml:"profiles,omitempty" json:"profiles,omitempty"`
 	// Defaults holds settings shared by every profile.
 	Defaults Defaults `yaml:"defaults,omitempty" json:"defaults,omitempty"`
+	// CLIAccounts maps profile names onto Shopify CLI sessions. It is
+	// independent of Profiles: those hold Admin API tokens, these only name
+	// accounts the Shopify CLI already knows about.
+	CLIAccounts CLIAccounts `yaml:"cli_accounts,omitempty" json:"cli_accounts,omitempty"`
 
 	// path is where this config was loaded from; not serialized.
 	path string `yaml:"-" json:"-"`
@@ -58,6 +62,33 @@ type Profile struct {
 	AccessToken string `yaml:"access_token,omitempty" json:"-"`
 	// APIVersion pins the Admin API version, e.g. "2026-04".
 	APIVersion string `yaml:"api_version,omitempty" json:"api_version,omitempty"`
+}
+
+// CLIAccounts is the `account` tool's slice of the configuration: the mapping
+// between local profile names and the accounts the Shopify CLI is logged into.
+// No credentials live here — the Shopify CLI owns and refreshes those.
+type CLIAccounts struct {
+	// Current is the profile selected last.
+	Current string `yaml:"current,omitempty" json:"current,omitempty"`
+	// Accounts holds the profiles that are linked to a Shopify CLI account.
+	Accounts []CLIAccount `yaml:"accounts,omitempty" json:"accounts,omitempty"`
+	// Pending holds profile names that have no account linked yet, carried
+	// over from a configuration written before aliases were recorded. They are
+	// linked the next time they are used.
+	Pending []string `yaml:"pending,omitempty" json:"pending,omitempty"`
+	// LegacyImported records that the profiles of the standalone shopify-auth
+	// tool were taken over already, so the one-time import does not run again
+	// once a logout has emptied the list.
+	LegacyImported bool `yaml:"legacy_imported,omitempty" json:"legacy_imported,omitempty"`
+}
+
+// CLIAccount links a local profile name to one Shopify CLI account.
+type CLIAccount struct {
+	// Name is the local profile name, e.g. "work".
+	Name string `yaml:"name" json:"name"`
+	// ShopifyAlias is the account the Shopify CLI reports as its current one,
+	// usually an email address. It selects a session; it is not a credential.
+	ShopifyAlias string `yaml:"shopify_alias" json:"shopify_alias"`
 }
 
 // New returns an empty configuration with defaults applied.
@@ -218,6 +249,64 @@ func (c *Config) RemoveProfile(name string) bool {
 		}
 	}
 	return true
+}
+
+// CLIAccount returns the Shopify CLI account linked to a profile name.
+func (c *Config) CLIAccount(name string) (CLIAccount, bool) {
+	for _, a := range c.CLIAccounts.Accounts {
+		if a.Name == name {
+			return a, true
+		}
+	}
+	return CLIAccount{}, false
+}
+
+// SetCLIAccount links a profile to a Shopify CLI account and makes it current.
+func (c *Config) SetCLIAccount(a CLIAccount) {
+	for i, existing := range c.CLIAccounts.Accounts {
+		if existing.Name == a.Name {
+			c.CLIAccounts.Accounts[i] = a
+			c.CLIAccounts.Current = a.Name
+			c.CLIAccounts.Pending = removeString(c.CLIAccounts.Pending, a.Name)
+			return
+		}
+	}
+	c.CLIAccounts.Accounts = append(c.CLIAccounts.Accounts, a)
+	c.CLIAccounts.Current = a.Name
+	c.CLIAccounts.Pending = removeString(c.CLIAccounts.Pending, a.Name)
+}
+
+// SortedCLIAccounts returns the linked profiles ordered by name.
+func (c *Config) SortedCLIAccounts() []CLIAccount {
+	accounts := append([]CLIAccount(nil), c.CLIAccounts.Accounts...)
+	sort.Slice(accounts, func(i, j int) bool { return accounts[i].Name < accounts[j].Name })
+	return accounts
+}
+
+// PendingCLIAccounts returns the profile names that still need linking.
+func (c *Config) PendingCLIAccounts() []string {
+	pending := append([]string(nil), c.CLIAccounts.Pending...)
+	sort.Strings(pending)
+	return pending
+}
+
+// ClearCLIAccounts drops every profile mapping. Store profiles are untouched:
+// this is the counterpart of a Shopify CLI logout, not of `auth logout`.
+func (c *Config) ClearCLIAccounts() {
+	c.CLIAccounts = CLIAccounts{LegacyImported: c.CLIAccounts.LegacyImported}
+}
+
+func removeString(values []string, target string) []string {
+	kept := make([]string, 0, len(values))
+	for _, v := range values {
+		if v != target {
+			kept = append(kept, v)
+		}
+	}
+	if len(kept) == 0 {
+		return nil
+	}
+	return kept
 }
 
 // Save writes the config atomically with owner-only permissions, because it

@@ -148,3 +148,53 @@ func TestRemoveProfileClearsCurrent(t *testing.T) {
 		t.Error("RemoveProfile(a) on a missing profile = true, want false")
 	}
 }
+
+func TestCLIAccountsSurviveARoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	cfg := config.New()
+	cfg.SetPath(path)
+	cfg.SetProfile("prod", &config.Profile{Shop: "acme.myshopify.com", AccessToken: "shpat_x"})
+	cfg.CLIAccounts.Pending = []string{"work", "personal"}
+	cfg.SetCLIAccount(config.CLIAccount{Name: "work", ShopifyAlias: "dev@example.test"})
+
+	if cfg.CLIAccounts.Current != "work" {
+		t.Errorf("Current = %q, want the recorded profile", cfg.CLIAccounts.Current)
+	}
+	if got := cfg.PendingCLIAccounts(); len(got) != 1 || got[0] != "personal" {
+		t.Errorf("PendingCLIAccounts() = %v, want the linked name removed", got)
+	}
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("Save() returned error: %v", err)
+	}
+
+	reloaded, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("Load() returned error: %v", err)
+	}
+	account, ok := reloaded.CLIAccount("work")
+	if !ok || account.ShopifyAlias != "dev@example.test" {
+		t.Errorf("CLIAccount(work) = %+v, %v; want it read back", account, ok)
+	}
+	if _, ok := reloaded.CLIAccount("personal"); ok {
+		t.Error("CLIAccount(personal) reported a profile that is only pending")
+	}
+}
+
+func TestClearCLIAccountsKeepsStoreProfiles(t *testing.T) {
+	cfg := config.New()
+	cfg.SetProfile("prod", &config.Profile{Shop: "acme.myshopify.com", AccessToken: "shpat_x"})
+	cfg.SetCLIAccount(config.CLIAccount{Name: "work", ShopifyAlias: "dev@example.test"})
+	cfg.CLIAccounts.LegacyImported = true
+
+	cfg.ClearCLIAccounts()
+
+	if len(cfg.CLIAccounts.Accounts) != 0 || cfg.CLIAccounts.Current != "" {
+		t.Errorf("CLIAccounts = %+v, want them cleared", cfg.CLIAccounts)
+	}
+	if !cfg.CLIAccounts.LegacyImported {
+		t.Error("LegacyImported = false, want the one-time import to stay done")
+	}
+	if cfg.Profiles["prod"] == nil {
+		t.Error("store profiles were cleared along with the CLI accounts")
+	}
+}

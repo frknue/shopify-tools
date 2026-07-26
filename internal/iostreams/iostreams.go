@@ -26,14 +26,19 @@ type IOStreams struct {
 }
 
 // System returns the streams backed by the real process handles.
-func System() *IOStreams {
+func System() *IOStreams { return FromFiles(os.Stdin, os.Stdout, os.Stderr) }
+
+// FromFiles returns streams backed by the given files, detecting terminals and
+// colour support the way System does. Tests use it to drive a command from a
+// pseudo terminal, which is the only way to exercise the interactive paths.
+func FromFiles(in, out, errOut *os.File) *IOStreams {
 	s := &IOStreams{
-		In:     os.Stdin,
-		Out:    os.Stdout,
-		ErrOut: os.Stderr,
-		inTTY:  isTerminal(os.Stdin),
-		outTTY: isTerminal(os.Stdout),
-		errTTY: isTerminal(os.Stderr),
+		In:     in,
+		Out:    out,
+		ErrOut: errOut,
+		inTTY:  isTerminal(in),
+		outTTY: isTerminal(out),
+		errTTY: isTerminal(errOut),
 	}
 	s.colorEnabled = envColorEnabled(s.outTTY)
 	return s
